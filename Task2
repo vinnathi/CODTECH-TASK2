@@ -1,0 +1,76 @@
+#include "stm32f4xx.h"
+#include "fatfs.h"       // For SD Card
+#include "usart.h"       // For UART communication (Bluetooth or Wi-Fi)
+#include "dht11.h"       // Sample sensor DHT11 library
+
+FATFS FatFs;  // File system object
+FIL fil;      // File object
+char buffer[100];
+
+void SystemClock_Config(void);  // System clock configuration
+void MX_USART2_UART_Init(void); // UART for communication
+void MX_SPI1_Init(void);        // SPI for SD card
+
+int main(void) {
+    // Initialize the system and peripherals
+    HAL_Init();
+    SystemClock_Config();
+    MX_USART2_UART_Init();
+    MX_SPI1_Init();
+
+    // Mount the SD Card
+    if (f_mount(&FatFs, "", 1) == FR_OK) {
+        f_open(&fil, "log.txt", FA_OPEN_ALWAYS | FA_WRITE);  // Open log file for writing
+    }
+
+    while (1) {
+        // Read sensor data
+        float temperature = DHT11_ReadTemperature();
+        float humidity = DHT11_ReadHumidity();
+
+        // Format the data
+        sprintf(buffer, "Temp: %.2f, Humidity: %.2f\r\n", temperature, humidity);
+
+        // Write to SD card
+        f_write(&fil, buffer, strlen(buffer), NULL);
+
+        // Send data via Bluetooth or Wi-Fi
+        HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+
+        // Delay for a second
+        HAL_Delay(1000);
+    }
+}
+
+// UART and SPI Initialization Functions
+void MX_USART2_UART_Init(void) {
+    // UART2 Init for Bluetooth or Wi-Fi communication
+    huart2.Instance = USART2;
+    huart2.Init.BaudRate = 9600;
+    huart2.Init.WordLength = UART_WORDLENGTH_8B;
+    huart2.Init.StopBits = UART_STOPBITS_1;
+    huart2.Init.Parity = UART_PARITY_NONE;
+    huart2.Init.Mode = UART_MODE_TX_RX;
+    HAL_UART_Init(&huart2);
+}
+
+void MX_SPI1_Init(void) {
+    // SPI1 Init for SD Card communication
+    hspi1.Instance = SPI1;
+    hspi1.Init.Mode = SPI_MODE_MASTER;
+    hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+    hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+    hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+    hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+    hspi1.Init.NSS = SPI_NSS_SOFT;
+    hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+    hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+    hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    HAL_SPI_Init(&hspi1);
+}
+
+// Clock Configuration (STM32 CubeMX typically generates this code)
+void SystemClock_Config(void) {
+    // Clock configuration details...
+}
